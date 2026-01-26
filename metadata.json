@@ -1,0 +1,8 @@
+{
+  "name": "SHARJAYS Image→Video Studio",
+  "description": "A high-end studio for transforming images into cinematic videos and realistic lip-synced animations using Google Gemini API.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
