@@ -33,13 +33,34 @@ export interface RenderJob {
 export interface Asset {
   id: string;
   name: string;
-  type: 'image' | 'video' | 'audio';
+  type: 'image' | 'video' | 'audio' | '3d';
   size: string;
   date: string;
   dataUrl?: string;
 }
 
+export interface VirtualSet {
+  id: string;
+  name: string;
+  type: 'color' | 'image' | 'video' | '3d' | 'hdr';
+  value: string; // Hex color or URL
+  thumbnail: string;
+}
+
+export interface WardrobeStyle {
+  id: string;
+  name: string;
+  category: 'suit' | 'hoodie' | 'tshirt' | 'accessory';
+  promptModifier: string;
+  thumbnail: string;
+  defaultColor: string;
+  material: string;
+  texture: string;
+  fit: string;
+}
+
 export interface GenerationSettings {
+  // Existing interface remains same
   prompt: string;
   negativePrompt: string;
   stylePreset: string;

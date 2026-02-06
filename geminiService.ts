@@ -1,129 +1,146 @@
-
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 export class GeminiService {
   private getAI() {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
-  /**
-   * Starts a new chat session for the AI Assistant.
-   */
   async startAssistantChat() {
     const ai = this.getAI();
     return ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: `You are the SHARJAYS Studio Co-Pilot, a world-class AI Assistant specialized in cinematic video production and realistic lip-sync animation. 
-        Your goal is to help users create high-end content using the studio's tools:
-        1. Image to Video: Uses Veo 3.1 for 1080p cinematic motion.
-        2. Lip-Sync: Uses neural TTS and facial animation for long scripts.
-        
-        When asked for prompts, be extremely descriptive, focusing on lighting (chiaroscuro, volumetric), camera movement (dolly zoom, pan, tilt), and texture.
-        When asked for scripts, ensure the tone matches the requested vocal signature (Kore, Zephyr, etc.).
-        Keep responses concise, professional, and helpful. Always maintain the luxurious 'Hear The Truth' brand identity.`,
+        systemInstruction: `You are the SHARJAYS Studio Co-Pilot. Help users with cinematic production. 
+        Focus on descriptive lighting and camera instructions. Use Google Search for trends.`,
+        tools: [{ googleSearch: {} }]
       },
     });
   }
 
   /**
-   * Generates or extends video from prompt and optional image/video.
+   * Uses AI to intelligently split a script into chunks suitable for video extension.
+   * Splits at natural pauses and sentence endings.
+   */
+  async intelligentlySplitScript(text: string): Promise<string[]> {
+    try {
+      const ai = this.getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Split the following script into logical segments for a lip-sync video. 
+        Each segment should be between 10 and 25 words. 
+        Split at natural pauses, commas, or ends of sentences.
+        Return only the segments as a JSON array of strings.
+        
+        Script: "${text}"`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text || "[]");
+      return Array.isArray(result) ? result : [text];
+    } catch (err) {
+      console.warn("AI Splitter failed, falling back to regex.", err);
+      return this.splitScript(text);
+    }
+  }
+
+  private async handleApiError(err: any): Promise<never> {
+    const errorMessage = typeof err === 'string' ? err : (err.message || JSON.stringify(err));
+    const status = err.status || (err.error?.code);
+
+    if (errorMessage.toLowerCase().includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || status === 429) {
+      if (window.aistudio?.openSelectKey) await window.aistudio.openSelectKey();
+      throw new Error("Quota Exhausted. Veo models require a API key from a PAID Google Cloud project. Check billing at ai.google.dev/gemini-api/docs/billing");
+    }
+
+    if (errorMessage.includes("Requested entity was not found") || status === 400) {
+      if (window.aistudio?.openSelectKey) await window.aistudio.openSelectKey();
+      throw new Error("API Key expired or invalid. Please re-select a valid paid API key.");
+    }
+
+    throw new Error(errorMessage || "An unexpected error occurred.");
+  }
+
+  /**
+   * Generates or extends video. Handles the "AI Stitch" by passing a previous video reference.
    */
   async generateVideo(
     prompt: string, 
     imageBase64?: string, 
-    previousVideo?: any,
+    previousVideoRef?: any,
     aspectRatio: '16:9' | '9:16' = '16:9'
   ) {
-    const ai = this.getAI();
-    const modelName = previousVideo ? 'veo-3.1-generate-preview' : 'veo-3.1-fast-generate-preview';
-    const resolution = previousVideo ? '720p' : '1080p';
-    
-    const payload: any = {
-      model: modelName,
-      prompt: prompt,
-      config: {
-        numberOfVideos: 1,
-        resolution: resolution,
-        aspectRatio: aspectRatio
-      }
-    };
-
-    if (previousVideo) {
-      payload.video = previousVideo;
-    } else if (imageBase64) {
-      payload.image = {
-        imageBytes: imageBase64.split(',')[1],
-        mimeType: 'image/png'
+    try {
+      const ai = this.getAI();
+      // Extension uses 'veo-3.1-generate-preview', Initial uses 'veo-3.1-fast-generate-preview'
+      const modelName = previousVideoRef ? 'veo-3.1-generate-preview' : 'veo-3.1-fast-generate-preview';
+      
+      const payload: any = {
+        model: modelName,
+        prompt: prompt,
+        config: {
+          numberOfVideos: 1,
+          resolution: '720p', // Extension requires 720p
+          aspectRatio: aspectRatio
+        }
       };
-    }
 
-    return await ai.models.generateVideos(payload);
+      if (previousVideoRef) {
+        payload.video = previousVideoRef;
+      } else if (imageBase64) {
+        payload.image = {
+          imageBytes: imageBase64.split(',')[1],
+          mimeType: 'image/png'
+        };
+      }
+
+      return await ai.models.generateVideos(payload);
+    } catch (err: any) {
+      return await this.handleApiError(err);
+    }
   }
 
   async pollVideoOperation(operation: any) {
     const ai = this.getAI();
     let currentOp = operation;
+    let attempts = 0;
+    
     while (!currentOp.done) {
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      currentOp = await ai.operations.getVideosOperation({ operation: currentOp });
+      const waitTime = Math.min(10000 + (attempts * 2000), 20000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      try {
+        currentOp = await ai.operations.getVideosOperation({ operation: currentOp });
+        attempts++;
+      } catch (err: any) {
+        return await this.handleApiError(err);
+      }
     }
+
+    if (currentOp.error) return await this.handleApiError(currentOp.error);
     return currentOp;
   }
 
-  async generateTTS(text: string, voiceName: string = 'Kore') {
-    if (!text || text.trim().length === 0) throw new Error("TTS script segment is empty.");
-    const ai = this.getAI();
-    const ttsPrompt = `Please say the following text clearly: ${text}`;
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: ttsPrompt }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName }
-          }
-        }
-      }
-    });
-
-    const part = response.candidates?.[0]?.content?.parts?.[0];
-    const base64Audio = part?.inlineData?.data;
-    if (!base64Audio) throw new Error("No audio data returned from Gemini TTS API.");
-    return base64Audio;
-  }
-
-  async decodePCM(base64: string, sampleRate: number = 24000): Promise<AudioBuffer> {
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate });
-    const dataInt16 = new Int16Array(bytes.buffer);
-    const buffer = audioCtx.createBuffer(1, dataInt16.length, sampleRate);
-    const channelData = buffer.getChannelData(0);
-    for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
-    return buffer;
-  }
-
-  splitScript(text: string, maxLength: number = 150): string[] {
+  splitScript(text: string, maxLength: number = 180): string[] {
     if (!text) return [];
     const sentences = text.match(/[^.!?]+[.!?]?(?:\s|$)/g) || [text];
     const chunks: string[] = [];
-    let currentChunk = "";
-    for (const sentence of sentences) {
-      const trimmed = sentence.trim();
-      if (!trimmed) continue;
-      if ((currentChunk + trimmed).length > maxLength && currentChunk.length > 0) {
-        chunks.push(currentChunk.trim());
-        currentChunk = trimmed;
+    let current = "";
+    for (const s of sentences) {
+      if ((current + s).length > maxLength && current.length > 0) {
+        chunks.push(current.trim());
+        current = s;
       } else {
-        currentChunk += (currentChunk ? " " : "") + trimmed;
+        current += (current ? " " : "") + s;
       }
     }
-    if (currentChunk.trim().length > 0) chunks.push(currentChunk.trim());
-    return chunks.filter(c => c.length > 0);
+    if (current) chunks.push(current.trim());
+    return chunks;
   }
 }
 

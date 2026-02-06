@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Tab, Project, RenderJob, Asset } from './types';
 import Dashboard from './components/Dashboard';
@@ -11,35 +10,36 @@ import Help from './components/Help';
 import Settings from './components/Settings';
 import AIAssistant from './components/AIAssistant';
 
+const LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABhWlDQ1BJQ0MgcHJvZmlsZQAAeJydks9rE0EQx79pS9IqClV6UPAiREvSqkXpQaRWS6EghYKk9pDkZre7S7K7yW52Teih/4InD7148+Zf4MGDP0G8ePbgwUMv3vXiRY9+u0mSshXfMvPm2/fN7MzsDCHXmK7ruSIApXmG7fht9vTM7PyC8D0AQQIowjAs7/mO77fOADXm733d3O8FQK/NlGvdGv9/1K9Y677n+WAnpL8H7Xo+2An0H8Ge5wfYBeonYI+7u77v6P+AnUDv678DdpP6E0Hn+2u5m3mX+V/AW6D/AnYRvU/vW/of0H8CO4H9oP6f7/Vun62463eX+f6n6S/NlA66G1A/AD3XhO0FhW6P+94D8G6Ae8D3XAd6A6gG8ALXW0B3A70N6BfU871N82vG++mJ97+W56Yp2XmB5/fTivVv6U7NfL9WzI68MvPG7Bnz6fT5tGbM2zNz/0u1XmB58vXWpYk3Wz97P0N8eT48X54Xzx/fH99v32ffH98H5x/f77fMvAnz6pSZF19uVpY+C3yv1m9f/p/+S/W2nAnfI3xP8j3N9/nOnAnfq38C/8Tf/wE3D85Lh0V9oAAAAF1QTFRF////3d3d7u7uzMzM5+fn8/Pyq6qre3t7+vr67+/vu7u7Vofgd3d3+fn57u7uzMzM3d3d8/Pyv7+/urq6+vr6rq6u9/f35+fntra2oKCgxMTEnJyc0tLS6+vr////jUOfcAAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAAd0SU1FB+kDAxUMCBoXPy0AAACASURBVDjL7ZExDsAgDAPNf8I2+v+HNRKWSggLInA0N/Z0UqKk/7B7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u/u99PnkH1A9vLp3Wv/38H7v7u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7u/u7v9pPz65B7fXQ0r790O7m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m/m";
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Dashboard);
-  const [dateTime, setDateTime] = useState<string>(new Date().toLocaleString());
-  const [timezone, setTimezone] = useState<string>('auto');
-  const [hasKey, setHasKey] = useState<boolean>(false);
-  
-  // Persistent State
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+
+  // Initialize state from LocalStorage for production persistence
   const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem('sharjays_projects');
+    const saved = localStorage.getItem('sj_projects');
     return saved ? JSON.parse(saved) : [];
   });
-  
   const [renders, setRenders] = useState<RenderJob[]>(() => {
-    const saved = localStorage.getItem('sharjays_renders');
+    const saved = localStorage.getItem('sj_renders');
     return saved ? JSON.parse(saved) : [];
   });
-  
   const [assets, setAssets] = useState<Asset[]>(() => {
-    const saved = localStorage.getItem('sharjays_assets');
+    const saved = localStorage.getItem('sj_assets');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Check API Key status
+  // Persist state changes
+  useEffect(() => localStorage.setItem('sj_projects', JSON.stringify(projects)), [projects]);
+  useEffect(() => localStorage.setItem('sj_renders', JSON.stringify(renders)), [renders]);
+  useEffect(() => localStorage.setItem('sj_assets', JSON.stringify(assets)), [assets]);
+
   useEffect(() => {
     const checkKey = async () => {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
-        const status = await aistudio.hasSelectedApiKey();
-        setHasKey(status);
+        setHasApiKey(await aistudio.hasSelectedApiKey());
       }
     };
     checkKey();
@@ -47,193 +47,110 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleConnectKey = async () => {
-    const aistudio = (window as any).aistudio;
-    if (aistudio) {
-      await aistudio.openSelectKey();
-      setHasKey(true);
+  const handleOpenKeyDialog = async () => {
+    if ((window as any).aistudio) {
+      await (window as any).aistudio.openSelectKey();
+      setHasApiKey(true);
     }
   };
 
-  // Sync state with localStorage
-  useEffect(() => {
-    localStorage.setItem('sharjays_projects', JSON.stringify(projects));
-  }, [projects]);
+  const addJob = useCallback((job: RenderJob) => setRenders(prev => [job, ...prev]), []);
   
-  useEffect(() => {
-    localStorage.setItem('sharjays_renders', JSON.stringify(renders));
-  }, [renders]);
-  
-  useEffect(() => {
-    localStorage.setItem('sharjays_assets', JSON.stringify(assets));
-  }, [assets]);
-
-  // Clock Update
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      const options: Intl.DateTimeFormatOptions = {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      };
-      if (timezone !== 'auto') {
-        options.timeZone = timezone;
-      }
-      setDateTime(now.toLocaleString('en-US', options));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [timezone]);
-
-  const addRenderJob = useCallback((job: RenderJob) => {
-    setRenders(prev => [job, ...prev]);
+  const updateJob = useCallback((jobId: string, updates: Partial<RenderJob>) => {
+    setRenders(prev => prev.map(job => job.id === jobId ? { ...job, ...updates } : job));
   }, []);
 
-  const addAsset = useCallback((asset: Asset) => {
-    setAssets(prev => [asset, ...prev]);
-  }, []);
+  const addAsset = useCallback((asset: Asset) => setAssets(prev => [asset, ...prev]), []);
 
   const renderContent = () => {
     switch (activeTab) {
-      case Tab.Dashboard: return <Dashboard projects={projects} renders={renders} assets={assets} onSwitch={setActiveTab} />;
-      case Tab.Image2Video: return <ImageToVideo onAddJob={addRenderJob} />;
-      case Tab.LipSync: return <LipSync onAddJob={addRenderJob} />;
-      case Tab.Projects: return <Projects projects={projects} setProjects={setProjects} />;
-      case Tab.Renders: return <Renders renders={renders} setRenders={setRenders} />;
-      case Tab.Assets: return <AssetLibrary assets={assets} onAddAsset={addAsset} setAssets={setAssets} />;
-      case Tab.Help: return <Help />;
-      case Tab.Settings: return <Settings />;
-      default: return <Dashboard projects={projects} renders={renders} assets={assets} onSwitch={setActiveTab} />;
+      case Tab.Dashboard:
+        return <Dashboard projects={projects} renders={renders} assets={assets} onSwitch={setActiveTab} />;
+      case Tab.Image2Video:
+        return <ImageToVideo onAddJob={addJob} onUpdateJob={updateJob} onAddAsset={addAsset} />;
+      case Tab.LipSync:
+        return <LipSync onAddJob={addJob} onUpdateJob={updateJob} onAddAsset={addAsset} />;
+      case Tab.Projects:
+        return <Projects projects={projects} setProjects={setProjects} />;
+      case Tab.Renders:
+        return <Renders renders={renders} setRenders={setRenders} />;
+      case Tab.Assets:
+        return <AssetLibrary assets={assets} onAddAsset={addAsset} setAssets={setAssets} />;
+      case Tab.Help:
+        return <Help />;
+      case Tab.Settings:
+        return <Settings />;
+      default:
+        return <Dashboard projects={projects} renders={renders} assets={assets} onSwitch={setActiveTab} />;
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="glass-effect border-b border-gold/30 py-4 px-6 sticky top-0 z-50">
-        <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-4 cursor-pointer" onClick={() => setActiveTab(Tab.Dashboard)}>
-            <div className="w-12 h-12 bg-gradient-to-br from-[#D4AF37] to-[#B8860B] rounded-lg flex items-center justify-center shadow-lg shadow-gold/20">
-              <span className="text-black font-bold text-xl">S</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-[#D4AF37]">SHARJAYS Image→Video</h1>
-              <p className="text-[#D4AF37]/70 text-sm">Hear The Truth</p>
-            </div>
-          </div>
-          
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            {!hasKey ? (
-              <button 
-                onClick={handleConnectKey}
-                className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded-lg text-sm font-bold animate-pulse hover:bg-red-500 hover:text-white transition flex items-center gap-2"
-              >
-                <i className="fas fa-key"></i> Connect Paid API Key
-              </button>
-            ) : (
-              <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                <i className="fas fa-check-circle"></i> Paid Key Connected
-              </div>
-            )}
-
-            <div className="text-right hidden md:block">
-              <div className="text-lg font-mono text-[#D4AF37]">{dateTime}</div>
-              <div className="flex items-center gap-2 text-sm justify-end mt-1">
-                <select 
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  className="bg-[#1A1A1A] border border-gold/30 rounded px-2 py-0.5 text-[#F5F5DC] text-xs focus:outline-none focus:border-gold"
-                >
-                  <option value="auto">Auto (Browser Time)</option>
-                  <option value="UTC">UTC</option>
-                  <option value="America/New_York">EST</option>
-                  <option value="America/Chicago">CST</option>
-                  <option value="America/Denver">MST</option>
-                  <option value="America/Los_Angeles">PST</option>
-                  <option value="Europe/London">GMT</option>
-                  <option value="Asia/Tokyo">JST</option>
-                </select>
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-green-400 text-xs">System Online</span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#050505] text-[#F5F5DC] font-sans selection:bg-gold selection:text-black">
+      <nav className="fixed left-0 top-0 h-full w-20 md:w-64 bg-black border-r border-gold/20 flex flex-col z-50">
+        <div className="p-6 flex items-center gap-3 border-b border-gold/10">
+          <img src={LOGO_DATA_URI} alt="Logo" className="w-10 h-10 object-contain" />
+          <div className="hidden md:block">
+            <h1 className="text-xl font-black tracking-tighter text-[#D4AF37]">SHARJAYS</h1>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">Studio Pro</p>
           </div>
         </div>
-      </header>
-
-      {/* Main Navigation */}
-      <nav className="border-b border-gold/20 bg-[#1A1A1A] sticky top-[137px] md:top-[81px] z-40">
-        <div className="container mx-auto">
-          <div className="flex space-x-4 md:space-x-8 px-6 overflow-x-auto scrollbar-hide">
-            {Object.values(Tab).map((tab) => (
-              <button 
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`py-3 px-1 transition whitespace-nowrap border-b-2 ${
-                  activeTab === tab 
-                    ? 'border-[#D4AF37] text-[#F4E4A6] font-semibold' 
-                    : 'border-transparent text-[#F5F5DC]/80 hover:text-[#D4AF37]'
-                }`}
-              >
-                <i className={`fas fa-${getTabIcon(tab)} mr-2`}></i>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
+        <div className="flex-1 py-8 px-4 space-y-2 overflow-y-auto scrollbar-hide">
+          {Object.values(Tab).map((tab) => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${
+                activeTab === tab ? 'bg-gold text-black shadow-lg shadow-gold/20' : 'text-white/60 hover:text-gold hover:bg-white/5'
+              }`}>
+              <i className={`fas fa-${
+                tab === Tab.Dashboard ? 'th-large' : 
+                tab === Tab.Image2Video ? 'film' : 
+                tab === Tab.LipSync ? 'microphone-alt' :
+                tab === Tab.Projects ? 'folder' :
+                tab === Tab.Renders ? 'history' :
+                tab === Tab.Assets ? 'archive' :
+                tab === Tab.Help ? 'question-circle' : 'cog'
+              } text-lg`}></i>
+              <span className="hidden md:block font-bold text-sm capitalize">{tab}</span>
+            </button>
+          ))}
+        </div>
+        <div className="p-6 border-t border-gold/10">
+          <div className="hidden md:block p-4 bg-gold/5 rounded-xl border border-gold/10">
+             <p className="text-[10px] font-black text-gold uppercase tracking-widest mb-1">Compute Status</p>
+             <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${hasApiKey ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-[10px] text-white/60 font-mono">{hasApiKey ? 'NEURAL-READY' : 'KEY-REQUIRED'}</span>
+             </div>
           </div>
         </div>
       </nav>
-
-      {/* Main Content */}
-      <main className="flex-1 container mx-auto py-6 px-4 relative">
+      <main className="pl-20 md:pl-64 pt-6 pr-6 pb-24 min-h-screen overflow-x-hidden">
+        <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+           <div>
+             <h2 className="text-4xl font-black uppercase tracking-widest text-white/90">{activeTab}</h2>
+             <p className="text-gold/60 text-sm mt-1">Directing visual synthesis through Gemini Veo 3.1</p>
+           </div>
+           <div className="flex gap-4 items-center">
+              {!hasApiKey ? (
+                <button onClick={handleOpenKeyDialog} className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition flex items-center gap-2 animate-pulse">
+                  <i className="fas fa-key"></i> Connect Paid Key
+                </button>
+              ) : (
+                <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2">
+                  <i className="fas fa-check-circle"></i> Paid Key Connected
+                </div>
+              )}
+              <div className="bg-black/50 border border-gold/20 px-4 py-2 rounded-lg flex flex-col items-end">
+                 <span className="text-[9px] text-white/40 uppercase tracking-widest">Active Model</span>
+                 <span className="text-xs font-bold text-gold">VEO-3.1-PRO</span>
+              </div>
+           </div>
+        </header>
         {renderContent()}
       </main>
-
-      {/* AI Assistant */}
       <AIAssistant />
-
-      {/* Footer */}
-      <footer className="border-t border-gold/20 py-8 px-6 mt-auto">
-        <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#D4AF37] to-[#B8860B] rounded"></div>
-                <span className="text-[#D4AF37] font-bold">SHARJAYS Image→Video Studio</span>
-              </div>
-              <p className="text-[#F5F5DC]/60 text-sm mt-2">Production Build v1.1.0 • © 2024 All rights reserved</p>
-            </div>
-            
-            <div className="flex flex-wrap justify-center gap-6">
-              <a href="#" className="text-[#F5F5DC]/70 hover:text-[#D4AF37] transition">Terms</a>
-              <a href="#" className="text-[#F5F5DC]/70 hover:text-[#D4AF37] transition">Privacy</a>
-              <a href="#" className="text-[#F5F5DC]/70 hover:text-[#D4AF37] transition">Security</a>
-              <a href="#" className="text-[#F5F5DC]/70 hover:text-[#D4AF37] transition">Status</a>
-              <a href="#" className="text-[#F5F5DC]/70 hover:text-[#D4AF37] transition">Docs</a>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
-
-function getTabIcon(tab: Tab): string {
-  switch (tab) {
-    case Tab.Dashboard: return 'home';
-    case Tab.Image2Video: return 'film';
-    case Tab.LipSync: return 'microphone-alt';
-    case Tab.Projects: return 'folder';
-    case Tab.Renders: return 'download';
-    case Tab.Assets: return 'images';
-    case Tab.Help: return 'question-circle';
-    case Tab.Settings: return 'cog';
-    default: return 'circle';
-  }
-}
 
 export default App;

@@ -1,267 +1,249 @@
-
-import React, { useState, useRef } from 'react';
-import { RenderJob } from '../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { RenderJob, Asset } from '../types';
 import { gemini } from '../geminiService';
+import ModelViewer from './ModelViewer';
 
 interface LipSyncProps {
   onAddJob: (job: RenderJob) => void;
+  onAddAsset: (asset: Asset) => void;
 }
 
-const LipSync: React.FC<LipSyncProps> = ({ onAddJob }) => {
+const LipSync: React.FC<LipSyncProps> = ({ onAddJob, onAddAsset }) => {
   const [faceImage, setFaceImage] = useState<string | null>(null);
+  const [faceModel, setFaceModel] = useState<string | null>(null);
   const [text, setText] = useState('');
+  const [scriptChunks, setScriptChunks] = useState<string[]>([]);
+  const [styleModifier, setStyleModifier] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSplitting, setIsSplitting] = useState(false);
   const [status, setStatus] = useState('');
-  const [currentSegment, setCurrentSegment] = useState(0);
-  const [totalSegments, setTotalSegments] = useState(0);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [currentChunkIndex, setCurrentChunkIndex] = useState(-1);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [voice, setVoice] = useState('Kore');
   
   const faceInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFaceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setImageData(ev.target?.result as string);
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    const savedData = localStorage.getItem('sharjays_autosave_ls');
+    if (savedData) {
+      try {
+        const data = JSON.parse(savedData);
+        if (data.faceImage) setFaceImage(data.faceImage);
+        if (data.faceModel) setFaceModel(data.faceModel);
+        if (data.text) setText(data.text);
+        if (data.voice) setVoice(data.voice);
+      } catch (err) {}
+    }
+  }, []);
+
+  const handleSplitScript = async () => {
+    if (!text.trim()) return;
+    setIsSplitting(true);
+    setStatus("AI Script Splitter analyzing context...");
+    try {
+      const chunks = await gemini.intelligentlySplitScript(text);
+      setScriptChunks(chunks);
+    } catch (err) {
+      setErrorMsg("Script splitting failed.");
+    } finally {
+      setIsSplitting(false);
+      setStatus("");
     }
   };
 
-  const setImageData = (data: string) => {
-    setFaceImage(data);
+  const handleSwitchKey = async () => {
+    if (window.aistudio?.openSelectKey) {
+      await window.aistudio.openSelectKey();
+      setErrorMsg(null);
+    }
   };
 
-  const startLipSync = async () => {
-    if (!text || !faceImage) return;
+  const startSynthesis = async () => {
+    if (!faceImage && !faceModel) return;
+    let chunksToProcess = scriptChunks.length > 0 ? scriptChunks : [text];
     
     setIsProcessing(true);
-    setStatus("Preparing your production...");
-    
+    setErrorMsg(null);
+    let lastOperationResponse: any = null;
+    let finalVideoUrl = "";
+
     try {
-      // 1. Split the script into segments.
-      const segments = gemini.splitScript(text);
-      if (segments.length === 0) {
-        throw new Error("The script is empty or could not be parsed.");
-      }
-      setTotalSegments(segments.length);
-      
-      let lastVideoMetadata: any = null;
-      let finalVideoBlob: Blob | null = null;
+      const jobId = `job_ls_${Date.now()}`;
+      onAddJob({
+        id: jobId,
+        type: 'lipsync',
+        status: 'processing',
+        progress: 0,
+        createdAt: new Date().toISOString(),
+        prompt: text
+      });
 
-      for (let i = 0; i < segments.length; i++) {
-        setCurrentSegment(i + 1);
-        const segmentText = segments[i];
+      for (let i = 0; i < chunksToProcess.length; i++) {
+        setCurrentChunkIndex(i);
+        const chunk = chunksToProcess[i];
+        const isExtension = i > 0;
         
-        // Step A: Generate Audio for this segment to verify TTS first.
-        setStatus(`Part ${i + 1}/${segments.length}: Generating audio synthesis...`);
-        try {
-          // We generate it mainly to ensure the API is responsive and text is valid.
-          const base64PCM = await gemini.generateTTS(segmentText, voice);
-          // Note: In a real 'connector' with Veo, the model handles the voice/animation 
-          // based on the prompt. We provide the segment audio via the prompt context.
-        } catch (ttsErr: any) {
-          throw new Error(`TTS Error in segment ${i+1}: ${ttsErr.message}`);
-        }
-        
-        // Step B: Connect and Generate/Extend Video.
-        setStatus(`Part ${i + 1}/${segments.length}: Rendering visual continuity...`);
-        const animationPrompt = `Professional cinematic production. A close-up shot of the person from the source image. They are speaking naturally and clearly with perfectly synchronized lip movements, subtle emotional expressions, and natural eye contact. They are saying: "${segmentText}"`;
-        
-        // If i > 0, we pass lastVideoMetadata to EXTEND the previous video.
-        const operation = await gemini.generateVideo(
-          animationPrompt, 
-          faceImage, 
-          lastVideoMetadata,
-          '16:9'
+        setStatus(isExtension 
+          ? `Neural Stitching segment ${i + 1}/${chunksToProcess.length}...` 
+          : `Synthesizing Anchor segment 1/${chunksToProcess.length}...`
         );
-        
+
+        const chunkPrompt = `Close-up cinematic shot. The subject says: "${chunk}". 
+          Subject style: ${styleModifier || 'elegant professional'}. 
+          Perfect lip-sync and expressive facial animation. Studio lighting.`;
+
+        const operation = await gemini.generateVideo(
+          chunkPrompt, 
+          !isExtension ? (faceImage || undefined) : undefined, 
+          isExtension ? lastOperationResponse?.response?.generatedVideos?.[0]?.video : undefined
+        );
+
         const result = await gemini.pollVideoOperation(operation);
-        lastVideoMetadata = result.response?.generatedVideos?.[0]?.video;
+        lastOperationResponse = result;
 
-        if (!lastVideoMetadata) {
-          throw new Error(`Segment ${i + 1} failed to generate video content.`);
-        }
-        
-        // Fetch the latest version of the (potentially stitched) video.
-        if (i === segments.length - 1) {
-          setStatus("Finalizing master export...");
-          const downloadLink = lastVideoMetadata.uri;
-          const videoResponse = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
-          if (!videoResponse.ok) throw new Error("Failed to download the final video file.");
-          finalVideoBlob = await videoResponse.blob();
+        // Preview the current progress
+        const uri = result.response?.generatedVideos?.[0]?.video?.uri;
+        if (uri) {
+          const videoResponse = await fetch(`${uri}&key=${process.env.API_KEY}`);
+          const blob = await videoResponse.blob();
+          finalVideoUrl = URL.createObjectURL(blob);
+          setVideoUrl(finalVideoUrl);
         }
       }
 
-      if (finalVideoBlob) {
-        const url = URL.createObjectURL(finalVideoBlob);
-        setVideoUrl(url);
-        setStatus("Production ready for export.");
-        
-        onAddJob({
-          id: `ls_${Date.now()}`,
-          type: 'lipsync',
-          status: 'completed',
-          progress: 100,
-          createdAt: new Date().toISOString(),
-          prompt: text.length > 50 ? text.slice(0, 50) + "..." : text
-        });
-      }
+      setStatus("Production Complete. All segments stitched.");
     } catch (err: any) {
-      console.error("Lip-Sync Processing Error:", err);
-      const errorMsg = err.message || JSON.stringify(err);
-      
-      if (errorMsg.includes("403") || errorMsg.includes("PERMISSION_DENIED")) {
-        setStatus("Access Denied: Please ensure you have connected a PAID Tier API key.");
-        const aistudio = (window as any).aistudio;
-        if (aistudio) setTimeout(() => aistudio.openSelectKey(), 3000);
-      } else {
-        setStatus(`Error: ${errorMsg}`);
-      }
+      setErrorMsg(err.message || "Synthesis failed");
     } finally {
       setIsProcessing(false);
-      setCurrentSegment(0);
-      setTotalSegments(0);
+      setCurrentChunkIndex(-1);
     }
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
-      {/* Configuration Sidebar */}
       <div className="space-y-6">
-        <div className="glass-effect rounded-xl p-6">
-          <h3 className="text-lg font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
-            <i className="fas fa-id-card"></i> Source Subject
+        <div className="glass-effect rounded-xl p-6 shadow-xl">
+          <h3 className="text-lg font-bold text-gold mb-4 flex items-center gap-2">
+            <i className="fas fa-portrait"></i> Subject Source
           </h3>
-          {!faceImage ? (
-            <div 
-              onClick={() => faceInputRef.current?.click()}
-              className="border-2 border-dashed border-gold/30 rounded-lg p-10 text-center cursor-pointer hover:border-gold transition"
-            >
-              <i className="fas fa-smile text-4xl text-[#D4AF37] mb-4"></i>
-              <p className="text-gold font-bold">Upload Portrait</p>
-              <input type="file" ref={faceInputRef} className="hidden" accept="image/*" onChange={handleFaceUpload} />
+          {!faceImage && !faceModel ? (
+            <div className="border-2 border-dashed border-gold/20 rounded-xl p-10 text-center bg-black/40 hover:border-gold/40 cursor-pointer" onClick={() => faceInputRef.current?.click()}>
+              <i className="fas fa-user-circle text-3xl text-gold mb-4 block"></i>
+              <p className="text-gold/40 text-[10px] uppercase tracking-widest">Select Face or 3D Model</p>
+            </div>
+          ) : faceModel ? (
+            <div className="h-64 rounded-xl overflow-hidden border border-gold/20">
+              <ModelViewer modelUrl={faceModel} onSnapshot={setFaceImage} onStyleUpdate={setStyleModifier} className="w-full h-full" />
             </div>
           ) : (
-            <div className="relative group">
-              <img src={faceImage} alt="Portrait" className="w-full h-48 object-cover rounded-lg border border-gold/20" />
-              <button 
-                onClick={() => setFaceImage(null)} 
-                className="absolute top-2 right-2 bg-red-500 p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition shadow-lg"
-              >
-                <i className="fas fa-trash"></i>
-              </button>
+            <div className="relative group rounded-xl overflow-hidden border border-gold/20 h-64">
+              <img src={faceImage!} className="w-full h-full object-cover" />
+              <button onClick={() => {setFaceImage(null); setFaceModel(null);}} className="absolute top-4 right-4 bg-red-500 text-white w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><i className="fas fa-times"></i></button>
+            </div>
+          )}
+          <input type="file" ref={faceInputRef} className="hidden" accept="image/*,.glb,.gltf" onChange={(e) => {
+            const f = e.target.files?.[0]; if (!f) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const res = ev.target?.result as string;
+              if (f.name.endsWith('.glb') || f.name.endsWith('.gltf')) setFaceModel(res); else setFaceImage(res);
+            };
+            reader.readAsDataURL(f);
+          }} />
+        </div>
+
+        <div className="glass-effect rounded-xl p-6 shadow-xl">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-bold text-gold flex items-center gap-2">
+              <i className="fas fa-pen-nib"></i> Script
+            </h3>
+            <button 
+              onClick={handleSplitScript} 
+              disabled={!text || isSplitting || isProcessing}
+              className="text-[10px] bg-gold/10 text-gold border border-gold/30 px-3 py-1 rounded-full uppercase font-black hover:bg-gold hover:text-black transition"
+            >
+              {isSplitting ? 'Splitting...' : 'AI Split Script'}
+            </button>
+          </div>
+          <textarea 
+            className="w-full bg-black/40 border border-gold/20 rounded-lg p-4 text-cream focus:border-gold focus:outline-none h-40 resize-none text-sm"
+            placeholder="Enter script for lip-sync..."
+            value={text}
+            onChange={(e) => { setText(e.target.value); setScriptChunks([]); }}
+          />
+          
+          {scriptChunks.length > 0 && (
+            <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2 scrollbar-thin">
+              <p className="text-[9px] text-white/30 uppercase font-black tracking-widest">Neural Performance Segments</p>
+              {scriptChunks.map((chunk, idx) => (
+                <div key={idx} className={`p-2 rounded border text-[10px] leading-relaxed ${currentChunkIndex === idx ? 'bg-gold/20 border-gold text-gold animate-pulse' : 'bg-white/5 border-white/10 text-white/50'}`}>
+                  <span className="font-bold mr-2">{idx + 1}.</span> {chunk}
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        <div className="glass-effect rounded-xl p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-[#D4AF37]">The Script</h3>
-            <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${text.length > 1000 ? 'bg-red-500/20 text-red-400' : 'bg-gold/10 text-gold/60'}`}>
-              {text.length} chars
-            </span>
-          </div>
-          <textarea 
-            className="w-full bg-[#1A1A1A] border border-gold/30 rounded-lg p-4 text-[#F5F5DC] focus:border-gold h-64 resize-none scrollbar-thin text-sm leading-relaxed"
-            placeholder="Paste your script here. We support long-form text by intelligently splitting and extending the video segments for a continuous experience."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <div className="mt-4 space-y-4">
-            <div className="space-y-1">
-              <label className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Vocal Signature</label>
-              <select 
-                value={voice}
-                onChange={(e) => setVoice(e.target.value)}
-                className="w-full bg-[#1A1A1A] border border-gold/30 rounded p-2 text-xs text-gold focus:outline-none focus:border-gold"
-              >
-                <option value="Kore">Kore (Male - Authority)</option>
-                <option value="Zephyr">Zephyr (Female - Soft)</option>
-                <option value="Puck">Puck (Youthful - Energetic)</option>
-                <option value="Charon">Charon (Male - Cinematic Deep)</option>
-              </select>
-            </div>
-            <button 
-              onClick={startLipSync}
-              disabled={isProcessing || !text || !faceImage}
-              className="w-full bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-50 transition shadow-xl shadow-gold/10"
-            >
-              {isProcessing ? <i className="fas fa-circle-notch animate-spin"></i> : <i className="fas fa-magic"></i>}
-              {isProcessing ? 'Processing Master...' : 'Begin Production'}
-            </button>
-          </div>
-        </div>
+        <button 
+          onClick={startSynthesis} 
+          disabled={isProcessing || !text || (!faceImage && !faceModel)}
+          className="w-full bg-gold text-black font-black py-4 rounded-xl disabled:opacity-30 uppercase tracking-[0.2em] text-xs shadow-2xl hover:brightness-110 active:scale-95 transition-all"
+        >
+          {isProcessing ? <i className="fas fa-sync animate-spin mr-2"></i> : <i className="fas fa-bolt mr-2"></i>}
+          {isProcessing ? `Stitching Segment ${currentChunkIndex + 1}...` : 'Start Production'}
+        </button>
       </div>
 
-      {/* Rendering Preview */}
       <div className="lg:col-span-2">
-        <div className="glass-effect rounded-xl p-6 h-full flex flex-col shadow-2xl">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-[#D4AF37]">Cinematic Workspace</h3>
-            {totalSegments > 0 && (
-              <div className="flex items-center gap-3 bg-gold/5 px-4 py-1.5 rounded-full border border-gold/20">
-                <span className="text-[10px] text-gold font-bold uppercase tracking-widest">
-                  Rendering Part {currentSegment} of {totalSegments}
-                </span>
-                <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-gold h-full transition-all duration-700" 
-                    style={{ width: `${(currentSegment / totalSegments) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
+        <div className="glass-effect rounded-xl p-8 min-h-[500px] flex flex-col shadow-2xl relative overflow-hidden">
+          <div className="flex justify-between items-center mb-8 relative z-10">
+            <h3 className="text-xl font-bold text-gold">Production Master</h3>
+            {videoUrl && !isProcessing && (
+              <button onClick={() => onAddAsset({
+                id: `a_${Date.now()}`,
+                name: `Master_Edit_${Date.now()}.mp4`,
+                type: 'video',
+                size: 'Master',
+                date: new Date().toLocaleDateString(),
+                dataUrl: videoUrl
+              })} className="text-xs text-gold border border-gold/30 px-4 py-1.5 rounded-full hover:bg-gold/10 transition">Save to Vault</button>
             )}
           </div>
           
-          <div className="flex-1 bg-black rounded-xl border border-gold/20 flex items-center justify-center relative overflow-hidden aspect-video shadow-inner">
+          <div className="flex-1 rounded-2xl border border-gold/10 relative overflow-hidden bg-black flex items-center justify-center aspect-video shadow-inner">
             {isProcessing ? (
-              <div className="text-center px-12">
-                <div className="w-20 h-20 border-4 border-gold border-t-transparent rounded-full animate-spin mx-auto mb-8 shadow-lg shadow-gold/20"></div>
-                <p className="text-xl font-bold text-gold pulse-gold mb-3">{status}</p>
-                <p className="text-[10px] text-white/30 uppercase tracking-[0.2em]">Veo Neural Stitched Output</p>
-                <div className="mt-6 flex flex-wrap justify-center gap-2 opacity-50">
-                  {Array.from({ length: totalSegments }).map((_, idx) => (
-                    <div 
-                      key={idx} 
-                      className={`w-2 h-2 rounded-full ${idx + 1 <= currentSegment ? 'bg-gold' : 'bg-white/10'}`}
-                    ></div>
-                  ))}
+              <div className="text-center">
+                <div className="relative w-24 h-24 mx-auto mb-8">
+                  <div className="absolute inset-0 border-4 border-gold/20 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-gold border-t-transparent rounded-full animate-spin"></div>
+                  <i className="fas fa-brain absolute inset-0 flex items-center justify-center text-gold text-2xl animate-pulse"></i>
                 </div>
+                <h4 className="text-gold font-black text-xl mb-2 tracking-tight uppercase">{status}</h4>
+                <div className="w-48 h-1 bg-white/5 mx-auto rounded-full overflow-hidden">
+                   <div 
+                    className="bg-gold h-full transition-all duration-1000" 
+                    style={{ width: `${((currentChunkIndex + 1) / (scriptChunks.length || 1)) * 100}%` }}
+                   ></div>
+                </div>
+              </div>
+            ) : errorMsg ? (
+              <div className="text-center p-12 max-w-md">
+                <i className="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+                <p className="text-white text-sm mb-6">{errorMsg}</p>
+                {errorMsg.toLowerCase().includes("quota") && (
+                  <button onClick={handleSwitchKey} className="bg-red-500 text-white font-black py-3 px-8 rounded-lg uppercase text-xs">Switch Project Key</button>
+                )}
               </div>
             ) : videoUrl ? (
-              <video src={videoUrl} controls autoPlay className="w-full h-full object-contain" />
+              <video src={videoUrl} controls autoPlay loop className="w-full h-full object-contain" />
             ) : (
-              <div className="text-center text-white/10">
-                <i className="fas fa-clapperboard text-[120px] mb-6"></i>
-                <p className="text-lg font-bold uppercase tracking-widest">Production Idle</p>
-                <p className="text-xs mt-2 italic">Upload a photo and script to begin rendering your video</p>
+              <div className="text-center opacity-10">
+                <i className="fas fa-clapperboard text-8xl mb-4"></i>
+                <p className="text-2xl font-black uppercase tracking-[0.5em]">Studio Idle</p>
               </div>
             )}
-          </div>
-          
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="p-5 bg-black/40 rounded-xl border border-gold/10">
-                <h4 className="text-[10px] text-gold font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
-                  <i className="fas fa-microchip"></i> Engine Status
-                </h4>
-                <p className="text-xs text-white/50 leading-relaxed">
-                  Our system utilizes sequential frame prediction to ensure that character identity and lighting remain consistent across segment boundaries. Stitched videos are returned as a single high-bitrate MP4 container.
-                </p>
-             </div>
-             {videoUrl && (
-               <div className="flex items-center justify-center">
-                  <a 
-                    href={videoUrl} 
-                    download="sharjays_studio_production.mp4"
-                    className="group bg-gold text-black font-bold py-4 px-10 rounded-full hover:brightness-110 transition flex items-center gap-3 shadow-xl shadow-gold/20"
-                  >
-                    <i className="fas fa-file-download text-lg group-hover:bounce"></i> 
-                    <span>Download Master Clip</span>
-                  </a>
-               </div>
-             )}
           </div>
         </div>
       </div>
